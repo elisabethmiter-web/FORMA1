@@ -1,1 +1,107 @@
-# FORMA1
+# FormSign 2
+
+A self-hosted e-signature app that works like DocuSign: upload a PDF, drop signature and form fields where each person needs to act, send it, and recipients sign in order. When everyone has signed, you get one completed PDF with the signatures stamped on the pages and a Certificate of Completion at the end.
+
+## What it does
+
+**Prepare (sender)**
+- Upload one or more PDFs into an *envelope*.
+- Add recipients: people who need to sign, and people who just get a copy.
+- Set signing order. Same number signs at the same time; higher numbers wait. Example: client signs first (1), you countersign (2), finance gets a copy (3).
+- Drag fields onto the pages for each recipient, colour-coded per person: **Signature, Initials, Date signed, Full name, Text, Checkbox**. Move, resize, mark required, label, delete. Arrow keys nudge.
+- Save as a draft, or save the layout as a **template** for documents you send often.
+
+**Sign (recipient)**
+- Opens their unique link (any device, no account), agrees to the e-signature disclosure.
+- Gets guided field by field with **Start / Next**, the way DocuSign does it.
+- Adopts a signature once (typed in a signature style, or drawn) with initials, then taps each field to apply it.
+- Can **decline** with a reason, which stops the envelope and tells you why.
+
+**Track and finish**
+- Dashboard: Waiting for others, Completed, Drafts, Needs attention.
+- Per-envelope view: each recipient's status (Sent, Viewed, Signed), signing links, full history with timestamps and IP addresses.
+- Correct a recipient's name or email (their old link stops working), extend expiry, void with a reason, copy an envelope to resend.
+- Completed PDF: fields flattened onto the original pages, an Envelope ID on every page, then a **Certificate of Completion** (signers, signatures, IPs, sent/viewed/consented/signed times, document fingerprints, full history).
+- **Verify page** (`/verify`, public): anyone can upload a completed PDF to confirm it's unaltered, by matching its SHA-256 fingerprint.
+- With email turned on, recipients are emailed when it's their turn, and everyone gets the completed PDF.
+
+## Test it live in 10 minutes (free)
+
+1. Create free accounts at github.com and render.com (sign up to Render with GitHub).
+2. On GitHub: **New repository** → name it `formsign` → Private → Create. Click **uploading an existing file**, drag in everything inside the unzipped `formsign` folder (not the folder itself), and **Commit changes**.
+3. On Render: **New → Blueprint** → choose the `formsign` repo → enter an `ADMIN_PASSWORD` and `BUSINESS_NAME` → **Apply**. The first build takes 3–5 minutes.
+4. Open the `https://formsign-xxxx.onrender.com` address Render shows and sign in.
+
+The free plan sleeps after 15 minutes idle (the next visit takes ~50 seconds to wake) and **wipes data on restart**, so it's for testing only. See `render.yaml` to switch to the paid plan with a disk.
+
+## Online forms (no PDF needed)
+
+Besides PDFs, an envelope can include the **Plumbing & appliance specifications** form. The client adds rooms (up to 20), and in each room adds items (sink, faucet, toilet, stove, dishwasher and so on, grouped as Plumbing or Appliance) with make, model, optional finish, quantity and notes. Their signature is added to the form when they finish, and it becomes a clean room-by-room table in the completed PDF.
+
+- Start one from **New envelope → Start with spec form**, or add it to any envelope with **+ Spec form** in the editor.
+- Choose which signer fills it in. That signer doesn't need a signature field placed: the form carries their signature.
+- The item list lives in `forms.py` (`CATEGORIES`) if you want to add or rename items.
+
+## Run it on your computer
+
+Needs Python 3.10+.
+
+```bash
+pip install -r requirements.txt
+ADMIN_PASSWORD=choose-a-password BUSINESS_NAME="Your Company" python app.py
+```
+
+Open http://localhost:5000. On Windows you can instead double-click `start-windows.bat` (password `test`). Locally only you can open signing links; put it online for clients.
+
+## Put it online
+
+**Render (about US$7/month):** push this folder to a private GitHub repo, then on render.com choose **New → Blueprint** and pick the repo. `render.yaml` creates the web service and a 1 GB persistent disk. Fill in `ADMIN_PASSWORD`, `BUSINESS_NAME` and `BASE_URL` when asked.
+
+**Anywhere with Docker** (Railway, Fly.io, a VPS): build the `Dockerfile` and mount a persistent volume at `/data`.
+
+Back up `DATA_DIR`: it holds the database, uploaded PDFs, signatures and completed documents.
+
+## Email (optional)
+
+| Variable | Example |
+| --- | --- |
+| `SMTP_HOST` / `SMTP_PORT` | `smtp.postmarkapp.com` / `587` (`465` for SSL) |
+| `SMTP_USER` / `SMTP_PASSWORD` | from your provider |
+| `SMTP_FROM` | `Your Company <sign@yourdomain.com>` |
+| `ADMIN_EMAIL` | gets completed/declined notices; used as reply-to |
+
+Without email, copy each signer's link from the envelope page when it's their turn. A transactional provider (Postmark, Amazon SES, Mailgun) delivers best.
+
+## Settings
+
+| Variable | Purpose |
+| --- | --- |
+| `ADMIN_PASSWORD` | Your sign-in password (required) |
+| `SECRET_KEY` | Long random string for sessions (required in production) |
+| `BUSINESS_NAME` | Shown to recipients, in emails and on PDFs |
+| `BASE_URL` | Public address used in emailed links |
+| `DATA_DIR` | Storage folder (default `./data`) |
+| `LINK_EXPIRY_DAYS` | Signing-link lifetime (default 30) |
+| `DATE_FORMAT` | Format for Date signed fields (default `%b %d, %Y`) |
+
+## How it works
+
+- `app.py`: Flask routes. Sender pages need the admin password; recipient pages are reached only by unguessable per-recipient tokens.
+- `pdfengine.py`: normalizes uploads (bakes in page rotation, removes interactive form fields), renders page previews with PDFium, stamps fields with ReportLab and pypdf, builds the certificate.
+- `static/editor.js`: drag-and-drop field editor. `static/sign.js`: guided signing and signature adoption.
+- SQLite tables: `envelopes`, `recipients`, `field_values`, `events`, `templates`.
+- Field positions are stored as fractions of the page, so they line up exactly on screen and on the PDF.
+- Envelopes snapshot their documents and fields at creation; editing a template never changes envelopes already sent.
+
+## Legal note
+
+This produces simple electronic signatures with consent, intent (adopt-and-sign), signer identification by email link, and an audit trail. That is generally accepted for business contracts, engagement letters and consent forms under laws like the US ESIGN Act, Canada's PIPEDA/UECA-based provincial acts and eIDAS "simple" signatures. It does **not** verify identity (ID checks, SMS codes) or apply a certificate-based digital signature, and some documents (wills, some real-estate and family-law documents) can't be signed electronically in many places. Check what your documents need.
+
+## Ideas for later
+
+- SMS or access-code verification before signing
+- Certificate-based PDF seal (PAdES) so Adobe shows a blue "signed" ribbon
+- Automatic reminders every N days
+- Multiple sender accounts and shared templates
+- Signer attachments (upload ID or supporting documents)
+- Word file upload (convert with LibreOffice)

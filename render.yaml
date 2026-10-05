@@ -1,0 +1,29 @@
+# Render Blueprint. On render.com: New > Blueprint > pick this GitHub repo.
+#
+# This is set up for a FREE TEST: no cost, but the free plan has no permanent disk.
+# Your envelopes are wiped when the app restarts, redeploys, or sleeps (after ~15 min idle).
+#
+# To keep data for real use, change `plan: free` to `plan: starter` (about US$7/month)
+# and uncomment the `disk:` block and the DATA_DIR line below.
+services:
+  - type: web
+    name: formsign
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 2 --threads 4 --timeout 120 -b 0.0.0.0:$PORT app:app
+    # disk:
+    #   name: formsign-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      # - key: DATA_DIR
+      #   value: /var/data
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: BUSINESS_NAME
+        sync: false
